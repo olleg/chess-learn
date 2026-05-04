@@ -2,44 +2,71 @@ import { Chess } from 'chess.js';
 import { initBoard, setPosition } from './chess/board.js';
 import { playSound, setSoundEnabled, isSoundEnabled } from './audio.js';
 import './style.css';
-import moves from '../data/dragon-main-line.json';
+import dragonData from '../data/dragon-main-line.json';
+import italianData from '../data/italian-giuoco.json';
 
-const state = {
-  moveIndex: 0,
+const LINES = [dragonData, italianData];
+
+// ── State ──────────────────────────────────────────────────────────────────────
+
+let currentLine = LINES[0];
+let cg = null;
+let appMode = 'learn'; // 'learn' | 'practice'
+
+// Learn state
+const learn = {
   chess: new Chess(),
-  hintLevel: 0,
+  step: 0,
 };
 
-let cg = null;
-let runComplete = false;
+// Practice state
+const practice = {
+  chess: new Chess(),
+  moveIndex: 0,
+  hintLevel: 0,
+  runComplete: false,
+};
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getLegalDests() {
   const dests = new Map();
-  for (const m of state.chess.moves({ verbose: true })) {
+  for (const m of practice.chess.moves({ verbose: true })) {
     if (!dests.has(m.from)) dests.set(m.from, []);
     dests.get(m.from).push(m.to);
   }
   return dests;
 }
 
-function getLastMoveCoords() {
-  const history = state.chess.history({ verbose: true });
-  if (!history.length) return [];
-  const last = history[history.length - 1];
-  return [last.from, last.to];
+function getLastMoveCoords(chess) {
+  const h = chess.history({ verbose: true });
+  if (!h.length) return [];
+  return [h[h.length - 1].from, h[h.length - 1].to];
 }
 
-// ─── Move list ────────────────────────────────────────────────────────────────
+function setStatus(text) {
+  document.getElementById('status-text').textContent = text;
+}
 
-function updateMoveList() {
+function flashError() {
+  const wrap = document.getElementById('board-wrap');
+  wrap.classList.remove('error-flash');
+  void wrap.offsetWidth;
+  wrap.classList.add('error-flash');
+  setTimeout(() => wrap.classList.remove('error-flash'), 500);
+}
+
+function isUserTurn(moveIndex) {
+  const move = currentLine.moves[moveIndex];
+  return move && move.player === currentLine.playerColor;
+}
+
+// ── Move list ─────────────────────────────────────────────────────────────────
+
+function updateMoveList(chess) {
   const el = document.getElementById('move-list');
-  const history = state.chess.history();
-  if (!history.length) {
-    el.innerHTML = '';
-    return;
-  }
+  const history = chess.history();
+  if (!history.length) { el.innerHTML = ''; return; }
 
   let html = '';
   for (let i = 0; i < history.length; i++) {
@@ -54,120 +81,172 @@ function updateMoveList() {
   el.scrollTop = el.scrollHeight;
 }
 
-// ─── Status ───────────────────────────────────────────────────────────────────
+// ── Learn mode ────────────────────────────────────────────────────────────────
 
-function setStatus(text) {
-  document.getElementById('status-text').textContent = text;
+function enterLearnMode() {
+  appMode = 'learn';
+  document.getElementById('learn-controls').hidden = false;
+  document.getElementById('practice-controls').hidden = true;
+  document.getElementById('learn-tab-btn').classList.add('active');
+  document.getElementById('practice-tab-btn').classList.remove('active');
+  document.getElementById('move-list').innerHTML = '';
+
+  learn.chess = new Chess();
+  learn.step = 0;
+
+  renderLearnStep();
+  setStatus('Step through the line, then click Practice to drill it.');
 }
 
-// ─── Flash ────────────────────────────────────────────────────────────────────
-
-function flashError() {
-  const wrap = document.getElementById('board-wrap');
-  wrap.classList.remove('error-flash');
-  void wrap.offsetWidth;
-  wrap.classList.add('error-flash');
-  setTimeout(() => wrap.classList.remove('error-flash'), 500);
-}
-
-// ─── White move playback ──────────────────────────────────────────────────────
-
-function playWhiteMove() {
-  const move = moves[state.moveIndex];
-  if (!move || move.player !== 'white') return;
-
-  state.chess.move({ from: move.from, to: move.to, promotion: 'q' });
-  const lastMove = [move.from, move.to];
-
+function renderLearnStep() {
+  const lastMove = getLastMoveCoords(learn.chess);
   setPosition(cg, {
-    fen: state.chess.fen(),
+    fen: learn.chess.fen(),
     lastMove,
     movableColor: 'none',
-    dests: new Map(),
   });
 
-  state.moveIndex++;
-  updateMoveList();
+  const total = currentLine.moves.length;
+  document.getElementById('learn-counter').textContent = `${learn.step} / ${total}`;
 
-  if (state.moveIndex < moves.length && moves[state.moveIndex].player === 'white') {
-    setTimeout(playWhiteMove, 700);
+  // Disable/enable nav buttons
+  document.getElementById('learn-prev-btn').disabled = learn.step === 0;
+  document.getElementById('learn-next-btn').disabled = learn.step === total;
+
+  // Show move list in learn mode too
+  updateMoveList(learn.chess);
+}
+
+function learnNext() {
+  if (learn.step >= currentLine.moves.length) return;
+  const m = currentLine.moves[learn.step];
+  learn.chess.move({ from: m.from, to: m.to, promotion: 'q' });
+  learn.step++;
+  renderLearnStep();
+}
+
+function learnPrev() {
+  if (learn.step === 0) return;
+  learn.chess.undo();
+  learn.step--;
+  renderLearnStep();
+}
+
+// ── Practice mode ─────────────────────────────────────────────────────────────
+
+function enterPracticeMode() {
+  appMode = 'practice';
+  document.getElementById('learn-controls').hidden = true;
+  document.getElementById('practice-controls').hidden = false;
+  document.getElementById('practice-tab-btn').classList.add('active');
+  document.getElementById('learn-tab-btn').classList.remove('active');
+
+  resetPractice();
+}
+
+function resetPractice() {
+  practice.chess = new Chess();
+  practice.moveIndex = 0;
+  practice.hintLevel = 0;
+  practice.runComplete = false;
+
+  const hintBtn = document.getElementById('hint-btn');
+  if (!hintBtn.hidden) hintBtn.disabled = false;
+
+  setPosition(cg, {
+    fen: practice.chess.fen(),
+    lastMove: [],
+    movableColor: 'none',
+  });
+  updateMoveList(practice.chess);
+  setStatus('Loading...');
+  setTimeout(playAutoMove, 700);
+}
+
+// Plays the computer's side (whichever color is NOT playerColor)
+function playAutoMove() {
+  const move = currentLine.moves[practice.moveIndex];
+  if (!move || move.player === currentLine.playerColor) return;
+
+  practice.chess.move({ from: move.from, to: move.to, promotion: 'q' });
+  const lastMove = [move.from, move.to];
+  practice.moveIndex++;
+
+  setPosition(cg, { fen: practice.chess.fen(), lastMove, movableColor: 'none' });
+  updateMoveList(practice.chess);
+
+  // Consecutive auto-moves (shouldn't happen but guard anyway)
+  if (practice.moveIndex < currentLine.moves.length &&
+      currentLine.moves[practice.moveIndex].player !== currentLine.playerColor) {
+    setTimeout(playAutoMove, 700);
     return;
   }
 
-  if (state.moveIndex >= moves.length) {
-    handleComplete();
+  if (practice.moveIndex >= currentLine.moves.length) {
+    handlePracticeComplete();
     return;
   }
 
   setTimeout(() => {
     setPosition(cg, {
-      fen: state.chess.fen(),
+      fen: practice.chess.fen(),
       lastMove,
-      movableColor: 'black',
+      movableColor: currentLine.playerColor,
       dests: getLegalDests(),
     });
-    setStatus(`Move ${Math.ceil(state.moveIndex / 2)} — your turn`);
+    const moveNum = Math.ceil(practice.moveIndex / 2) + 1;
+    setStatus(`Move ${moveNum} — your turn`);
   }, 150);
 }
 
-// ─── User move handler ────────────────────────────────────────────────────────
-
 function handleUserMove(from, to) {
-  if (runComplete) return;
+  if (appMode !== 'practice' || practice.runComplete) return;
 
-  const expected = moves[state.moveIndex];
-  if (!expected || expected.player !== 'black') return;
+  const expected = currentLine.moves[practice.moveIndex];
+  if (!expected || expected.player !== currentLine.playerColor) return;
 
   if (from === expected.from && to === expected.to) {
-    state.chess.move({ from, to, promotion: 'q' });
-    state.hintLevel = 0;
-    state.moveIndex++;
+    practice.chess.move({ from, to, promotion: 'q' });
+    practice.hintLevel = 0;
+    practice.moveIndex++;
 
     setPosition(cg, {
-      fen: state.chess.fen(),
+      fen: practice.chess.fen(),
       lastMove: [from, to],
       movableColor: 'none',
-      dests: new Map(),
     });
-
     cg.setAutoShapes([]);
-    updateMoveList();
+    updateMoveList(practice.chess);
     playSound('correct');
 
-    if (state.moveIndex >= moves.length) {
-      handleComplete();
+    if (practice.moveIndex >= currentLine.moves.length) {
+      handlePracticeComplete();
     } else {
-      setTimeout(playWhiteMove, 700);
+      setTimeout(playAutoMove, 700);
     }
   } else {
-    // Wrong move — lock board, flash, then restart
     setPosition(cg, {
-      fen: state.chess.fen(),
-      lastMove: getLastMoveCoords(),
+      fen: practice.chess.fen(),
+      lastMove: getLastMoveCoords(practice.chess),
       movableColor: 'none',
-      dests: new Map(),
     });
-
     flashError();
     playSound('wrong');
     setStatus('Wrong move — restarting...');
-    setTimeout(resetGame, 1200);
+    setTimeout(resetPractice, 1200);
   }
 }
 
-// ─── Hint ─────────────────────────────────────────────────────────────────────
-
 function handleHint() {
-  if (runComplete) return;
-  const expected = moves[state.moveIndex];
-  if (!expected || expected.player !== 'black') return;
+  if (practice.runComplete) return;
+  const expected = currentLine.moves[practice.moveIndex];
+  if (!expected || expected.player !== currentLine.playerColor) return;
 
-  state.hintLevel++;
-
-  if (state.hintLevel === 1) {
+  practice.hintLevel++;
+  if (practice.hintLevel === 1) {
     cg.setAutoShapes([{ orig: expected.from, brush: 'blue' }]);
     setStatus('Hint: move this piece');
-  } else if (state.hintLevel === 2) {
+  } else if (practice.hintLevel === 2) {
     cg.setAutoShapes([{ orig: expected.from, dest: expected.to, brush: 'blue' }]);
     setStatus('Hint: move here');
   } else {
@@ -175,72 +254,73 @@ function handleHint() {
   }
 }
 
-// ─── Complete ─────────────────────────────────────────────────────────────────
-
-function handleComplete() {
-  runComplete = true;
+function handlePracticeComplete() {
+  practice.runComplete = true;
   playSound('complete');
   setStatus('Well done! Line complete!');
-
   setPosition(cg, {
-    fen: state.chess.fen(),
-    lastMove: getLastMoveCoords(),
+    fen: practice.chess.fen(),
+    lastMove: getLastMoveCoords(practice.chess),
     movableColor: 'none',
-    dests: new Map(),
   });
-
   document.getElementById('hint-btn').disabled = true;
 }
 
-// ─── Reset game ───────────────────────────────────────────────────────────────
+// ── Line selector ─────────────────────────────────────────────────────────────
 
-function resetGame() {
-  const hintBtn = document.getElementById('hint-btn');
-  if (!hintBtn.hidden) hintBtn.disabled = false;
-
-  state.chess = new Chess();
-  state.moveIndex = 0;
-  state.hintLevel = 0;
-  runComplete = false;
-
-  setPosition(cg, {
-    fen: state.chess.fen(),
-    lastMove: [],
-    movableColor: 'none',
-    dests: new Map(),
-  });
-
-  updateMoveList();
-  setStatus('Loading...');
-  setTimeout(playWhiteMove, 700);
+function loadLine(line) {
+  currentLine = line;
+  cg.set({ orientation: line.playerColor });
+  if (appMode === 'learn') enterLearnMode();
+  else enterPracticeMode();
 }
 
-// ─── Sound toggle ─────────────────────────────────────────────────────────────
+function buildLineSelector() {
+  const sel = document.getElementById('line-select');
+  sel.innerHTML = '';
+  LINES.forEach((line, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = line.subtitle;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener('change', () => loadLine(LINES[+sel.value]));
+}
+
+// ── Sound ─────────────────────────────────────────────────────────────────────
 
 function updateSoundButton() {
   document.getElementById('sound-btn').textContent = isSoundEnabled() ? '🔊' : '🔇';
 }
 
-// ─── Init ─────────────────────────────────────────────────────────────────────
+// ── Init ──────────────────────────────────────────────────────────────────────
 
 function init() {
-  const boardEl = document.getElementById('board');
-  cg = initBoard(boardEl, handleUserMove);
+  cg = initBoard(
+    document.getElementById('board'),
+    currentLine.playerColor,
+    handleUserMove
+  );
+
+  buildLineSelector();
 
   const isAdmin = new URLSearchParams(window.location.search).has('admin');
-  const hintBtn = document.getElementById('hint-btn');
-  hintBtn.hidden = !isAdmin;
+  document.getElementById('hint-btn').hidden = !isAdmin;
 
+  document.getElementById('learn-prev-btn').addEventListener('click', learnPrev);
+  document.getElementById('learn-next-btn').addEventListener('click', learnNext);
+  document.getElementById('learn-practice-btn').addEventListener('click', enterPracticeMode);
+  document.getElementById('learn-tab-btn').addEventListener('click', enterLearnMode);
+  document.getElementById('practice-tab-btn').addEventListener('click', enterPracticeMode);
   document.getElementById('hint-btn').addEventListener('click', handleHint);
-  document.getElementById('new-game-btn').addEventListener('click', resetGame);
+  document.getElementById('new-game-btn').addEventListener('click', resetPractice);
   document.getElementById('sound-btn').addEventListener('click', () => {
     setSoundEnabled(!isSoundEnabled());
     updateSoundButton();
   });
 
   updateSoundButton();
-  setTimeout(playWhiteMove, 700);
-  setStatus('Loading...');
+  enterLearnMode();
 }
 
 document.addEventListener('DOMContentLoaded', init);

@@ -3,9 +3,9 @@ import 'chessground/assets/chessground.base.css';
 import 'chessground/assets/chessground.brown.css';
 import 'chessground/assets/chessground.cburnett.css';
 
-export function initBoard(el, onMove) {
+export function initBoard(el, orientation, onMove) {
   return Chessground(el, {
-    orientation: 'black',
+    orientation: orientation || 'black',
     movable: {
       free: false,
       color: 'none',
@@ -24,16 +24,17 @@ export function initBoard(el, onMove) {
 }
 
 export function setPosition(cg, { fen, lastMove, movableColor, dests, autoShapes }) {
+  const turnColor = fen
+    ? (fen.split(' ')[1] === 'b' ? 'black' : 'white')
+    : 'white';
   cg.set({
     fen,
     lastMove: lastMove || [],
-    turnColor: movableColor || 'white',
+    turnColor,
     movable: {
       color: movableColor || 'none',
       dests: dests || new Map(),
     },
-    drawable: {
-      autoShapes: autoShapes || [],
-    },
+    drawable: { autoShapes: autoShapes || [] },
   });
 }

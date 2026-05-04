@@ -46,12 +46,78 @@ cg-board {
   touch-action: manipulation;
 }
 
-#controls {
+#practice-controls {
   display: flex;
   gap: 12px;
   justify-content: center;
   flex-wrap: wrap;
   margin: 12px 0;
+}
+
+#top-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+#line-select {
+  flex: 1;
+  min-width: 0;
+  font-size: 1rem;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #f5f5f5;
+  touch-action: manipulation;
+}
+
+#mode-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.tab-btn {
+  min-height: 40px;
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #f5f5f5;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.tab-btn.active {
+  background: #333;
+  color: #fff;
+  border-color: #333;
+}
+
+#learn-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 10px 0;
+}
+
+#learn-counter {
+  min-width: 60px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+#learn-practice-btn {
+  background: #2a6ebb;
+  color: #fff;
+  border-color: #2a6ebb;
+}
+
+#learn-practice-btn:active {
+  background: #1a4e8b;
 }
 
 button {

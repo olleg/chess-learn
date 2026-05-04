@@ -7,14 +7,35 @@
   </head>
   <body>
     <div id="app">
-      <h1>Dragon Trainer</h1>
+      <h1>Chess Trainer</h1>
+
+      <div id="top-bar">
+        <select id="line-select"></select>
+        <div id="mode-tabs">
+          <button class="tab-btn active" id="learn-tab-btn">Learn</button>
+          <button class="tab-btn" id="practice-tab-btn">Practice</button>
+        </div>
+      </div>
+
       <div id="status-bar"><span id="status-text">Loading...</span></div>
+
       <div id="board-wrap"><div id="board"></div></div>
-      <div id="controls">
+
+      <!-- Learn mode controls -->
+      <div id="learn-controls">
+        <button id="learn-prev-btn">← Back</button>
+        <span id="learn-counter">0 / 0</span>
+        <button id="learn-next-btn">Next →</button>
+        <button id="learn-practice-btn">Practice →</button>
+      </div>
+
+      <!-- Practice mode controls -->
+      <div id="practice-controls" hidden>
         <button id="hint-btn" hidden>Hint</button>
         <button id="new-game-btn">New game</button>
         <button id="sound-btn">🔇</button>
       </div>
+
       <div id="move-list"></div>
     </div>
     <script type="module" src="/src/main.js"></script>
