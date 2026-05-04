@@ -1,6 +1,5 @@
 import { Chess } from 'chess.js';
 import { initBoard, setPosition } from './chess/board.js';
-import { playSound, setSoundEnabled, isSoundEnabled } from './audio.js';
 import './style.css';
 import dragonData from '../data/dragon-main-line.json';
 import italianData from '../data/italian-giuoco.json';
@@ -163,10 +162,23 @@ function resetPractice() {
   setTimeout(playAutoMove, 700);
 }
 
-// Plays the computer's side (whichever color is NOT playerColor)
+// Plays the computer's side (whichever color is NOT playerColor).
+// If it's already the user's turn, just enables the board.
 function playAutoMove() {
   const move = currentLine.moves[practice.moveIndex];
-  if (!move || move.player === currentLine.playerColor) return;
+  if (!move || move.player === currentLine.playerColor) {
+    if (move) {
+      setPosition(cg, {
+        fen: practice.chess.fen(),
+        lastMove: getLastMoveCoords(practice.chess),
+        movableColor: currentLine.playerColor,
+        dests: getLegalDests(),
+      });
+      const moveNum = Math.ceil(practice.moveIndex / 2) + 1;
+      setStatus(`Move ${moveNum} — your turn`);
+    }
+    return;
+  }
 
   practice.chess.move({ from: move.from, to: move.to, promotion: 'q' });
   const lastMove = [move.from, move.to];
@@ -217,8 +229,6 @@ function handleUserMove(from, to) {
     });
     cg.setAutoShapes([]);
     updateMoveList(practice.chess);
-    playSound('correct');
-
     if (practice.moveIndex >= currentLine.moves.length) {
       handlePracticeComplete();
     } else {
@@ -231,7 +241,6 @@ function handleUserMove(from, to) {
       movableColor: 'none',
     });
     flashError();
-    playSound('wrong');
     setStatus('Wrong move — restarting...');
     setTimeout(resetPractice, 1200);
   }
@@ -256,7 +265,6 @@ function handleHint() {
 
 function handlePracticeComplete() {
   practice.runComplete = true;
-  playSound('complete');
   setStatus('Well done! Line complete!');
   setPosition(cg, {
     fen: practice.chess.fen(),
@@ -281,16 +289,10 @@ function buildLineSelector() {
   LINES.forEach((line, i) => {
     const opt = document.createElement('option');
     opt.value = i;
-    opt.textContent = line.subtitle;
+    opt.textContent = `${line.title}: ${line.subtitle}`;
     sel.appendChild(opt);
   });
   sel.addEventListener('change', () => loadLine(LINES[+sel.value]));
-}
-
-// ── Sound ─────────────────────────────────────────────────────────────────────
-
-function updateSoundButton() {
-  document.getElementById('sound-btn').textContent = isSoundEnabled() ? '🔊' : '🔇';
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -314,12 +316,7 @@ function init() {
   document.getElementById('practice-tab-btn').addEventListener('click', enterPracticeMode);
   document.getElementById('hint-btn').addEventListener('click', handleHint);
   document.getElementById('new-game-btn').addEventListener('click', resetPractice);
-  document.getElementById('sound-btn').addEventListener('click', () => {
-    setSoundEnabled(!isSoundEnabled());
-    updateSoundButton();
-  });
 
-  updateSoundButton();
   enterLearnMode();
 }
 
