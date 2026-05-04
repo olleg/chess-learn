@@ -36,13 +36,18 @@ jobs:
         run: npm run build
         working-directory: dragon-trainer
         env:
-          VITE_BASE: /chess-learn/
+          VITE_BASE: /chess-learn/dragon-trainer/
+
+      - name: Prepare Pages structure
+        run: |
+          mkdir -p site/dragon-trainer
+          cp -r dragon-trainer/dist/. site/dragon-trainer/
 
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dragon-trainer/dist
+          path: site
 
       - uses: actions/deploy-pages@v4
         id: deployment
