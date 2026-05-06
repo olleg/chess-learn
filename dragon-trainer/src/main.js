@@ -3,8 +3,9 @@ import { initBoard, setPosition } from './chess/board.js';
 import './style.css';
 import dragonData from '../data/dragon-main-line.json';
 import italianData from '../data/italian-giuoco.json';
+import dragonG4Data from '../data/dragon-g4.json';
 
-const LINES = [dragonData, italianData];
+const LINES = [dragonData, dragonG4Data, italianData];
 
 // ── State ──────────────────────────────────────────────────────────────────────
 
@@ -45,6 +46,16 @@ function getLastMoveCoords(chess) {
 
 function setStatus(text) {
   document.getElementById('status-text').textContent = text;
+}
+
+function showNote(text) {
+  const el = document.getElementById('note-bar');
+  if (text) {
+    el.textContent = text;
+    el.hidden = false;
+  } else {
+    el.hidden = true;
+  }
 }
 
 function flashError() {
@@ -93,6 +104,7 @@ function enterLearnMode() {
   learn.chess = new Chess();
   learn.step = 0;
 
+  showNote(null);
   renderLearnStep();
   setStatus('Step through the line, then click Practice to drill it.');
 }
@@ -107,6 +119,9 @@ function renderLearnStep() {
 
   const total = currentLine.moves.length;
   document.getElementById('learn-counter').textContent = `${learn.step} / ${total}`;
+
+  const prevMove = learn.step > 0 ? currentLine.moves[learn.step - 1] : null;
+  showNote(prevMove?.note || null);
 
   // Disable/enable nav buttons
   document.getElementById('learn-prev-btn').disabled = learn.step === 0;
@@ -152,6 +167,7 @@ function resetPractice() {
   const hintBtn = document.getElementById('hint-btn');
   if (!hintBtn.hidden) hintBtn.disabled = false;
 
+  showNote(null);
   setPosition(cg, {
     fen: practice.chess.fen(),
     lastMove: [],
@@ -182,6 +198,7 @@ function playAutoMove() {
 
   practice.chess.move({ from: move.from, to: move.to, promotion: 'q' });
   const lastMove = [move.from, move.to];
+  showNote(move.note || null);
   practice.moveIndex++;
 
   setPosition(cg, { fen: practice.chess.fen(), lastMove, movableColor: 'none' });
@@ -220,6 +237,7 @@ function handleUserMove(from, to) {
   if (from === expected.from && to === expected.to) {
     practice.chess.move({ from, to, promotion: 'q' });
     practice.hintLevel = 0;
+    showNote(expected.note || null);
     practice.moveIndex++;
 
     setPosition(cg, {

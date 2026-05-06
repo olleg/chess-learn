@@ -35,6 +35,7 @@ function validateFile(filePath) {
 
 const files = [
   join(__dirname, '..', 'data', 'dragon-main-line.json'),
+  join(__dirname, '..', 'data', 'dragon-g4.json'),
   join(__dirname, '..', 'data', 'italian-giuoco.json'),
 ];
 
